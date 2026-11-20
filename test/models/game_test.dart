@@ -76,7 +76,7 @@ void main() {
       expect(GameStatus.fromString('desconhecido'), GameStatus.wishlist);
     });
 
-    test('Deve serializar e deserializar LibraryEntry para/de Supabase JSON', () {
+    test('Deve serializar LibraryEntry para formato da tabela associativa (toSupabaseJson)', () {
       const game = Game(id: 42, name: 'Hades');
       final entry = LibraryEntry(
         id: 'uuid-1234',
@@ -90,20 +90,65 @@ void main() {
 
       final json = entry.toSupabaseJson();
       expect(json['game_id'], 42);
-      expect(json['game_name'], 'Hades');
+      expect(json.containsKey('game_name'), isFalse);
+      expect(json.containsKey('game_data'), isFalse);
       expect(json['status'], 'playing');
       expect(json['user_id'], 'user-abc');
       expect(json['notes'], 'Espada Estígia');
       expect(json['user_rating'], 10);
+    });
 
-      final reconstructed = LibraryEntry.fromSupabaseJson(json);
-      expect(reconstructed.id, equals('uuid-1234'));
-      expect(reconstructed.userId, equals('user-abc'));
-      expect(reconstructed.game.id, equals(42));
-      expect(reconstructed.game.name, equals('Hades'));
-      expect(reconstructed.status, equals(GameStatus.playing));
-      expect(reconstructed.notes, equals('Espada Estígia'));
-      expect(reconstructed.userRating, equals(10));
+    test('Deve serializar Game para formato da tabela games (toGamesTableJson)', () {
+      const game = Game(
+        id: 777,
+        name: 'Cyberpunk 2077',
+        summary: 'RPG futurista',
+        rating: 86.5,
+      );
+
+      final map = game.toGamesTableJson();
+      expect(map['id'], 777);
+      expect(map['name'], 'Cyberpunk 2077');
+      expect(map['summary'], 'RPG futurista');
+      expect(map['rating'], 86.5);
+      expect(map['raw_data'], isA<Map<String, dynamic>>());
+      expect((map['raw_data'] as Map)['id'], 777);
+    });
+
+    test('Deve deserializar LibraryEntry a partir da relação normalizada game:games(*)', () {
+      final normalizedJson = {
+        'id': 'entry-99',
+        'user_id': 'user-xyz',
+        'game_id': 1942,
+        'status': 'completed',
+        'created_at': '2026-11-20T12:00:00Z',
+        'notes': 'Finalizado com 120 horas',
+        'user_rating': 10,
+        'game': {
+          'id': 1942,
+          'name': 'The Witcher 3: Wild Hunt',
+          'cover_url': 'https://images.igdb.com/cover.jpg',
+          'summary': 'Geralt de Rivia em busca de Ciri',
+          'rating': 95.8,
+          'raw_data': {
+            'id': 1942,
+            'name': 'The Witcher 3: Wild Hunt',
+            'cover_url': 'https://images.igdb.com/cover.jpg',
+            'summary': 'Geralt de Rivia em busca de Ciri',
+            'genres': ['RPG', 'Aventura'],
+          },
+        },
+      };
+
+      final entry = LibraryEntry.fromSupabaseJson(normalizedJson);
+      expect(entry.id, 'entry-99');
+      expect(entry.userId, 'user-xyz');
+      expect(entry.status, GameStatus.completed);
+      expect(entry.notes, 'Finalizado com 120 horas');
+      expect(entry.userRating, 10);
+      expect(entry.game.id, 1942);
+      expect(entry.game.name, 'The Witcher 3: Wild Hunt');
+      expect(entry.game.genres, contains('RPG'));
     });
   });
 }

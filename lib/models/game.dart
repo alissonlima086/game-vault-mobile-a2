@@ -191,6 +191,23 @@ class Game {
     };
   }
 
+  /// Formato persistido na tabela compartilhada de catálogo 'games'
+  Map<String, dynamic> toGamesTableJson() {
+    return {
+      'id': id,
+      'name': name,
+      'cover_url': coverUrl,
+      'summary': summary,
+      'storyline': storyline,
+      'rating': rating,
+      'release_year': releaseYear,
+      'genres': genres,
+      'platforms': platforms,
+      'raw_data': toJson(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+  }
+
   Game copyWith({
     int? id,
     String? name,
@@ -262,18 +279,21 @@ class LibraryEntry {
     );
   }
 
-  /// Converte formato recebido do Supabase
+  /// Converte formato recebido do Supabase via JOIN com a tabela normalizada games
   factory LibraryEntry.fromSupabaseJson(Map<String, dynamic> json) {
-    final rawGameData = json['game_data'];
     Game parsedGame;
-    if (rawGameData is Map<String, dynamic>) {
-      parsedGame = Game.fromJson(rawGameData);
-    } else if (rawGameData is Map) {
-      parsedGame = Game.fromJson(Map<String, dynamic>.from(rawGameData));
+
+    if (json['game'] is Map) {
+      final gameMap = Map<String, dynamic>.from(json['game'] as Map);
+      if (gameMap['raw_data'] is Map) {
+        parsedGame = Game.fromJson(Map<String, dynamic>.from(gameMap['raw_data'] as Map));
+      } else {
+        parsedGame = Game.fromJson(gameMap);
+      }
     } else {
       parsedGame = Game(
         id: json['game_id'] as int? ?? 0,
-        name: json['game_name'] as String? ?? 'Jogo sem título',
+        name: 'Jogo #${json['game_id']}',
       );
     }
 
@@ -293,7 +313,7 @@ class LibraryEntry {
     );
   }
 
-  /// Converte para formato a ser persistido na tabela library_entries
+  /// Converte para formato persistido na tabela associativa library_entries (100% normalizada)
   Map<String, dynamic> toSupabaseJson({
     String? currentUserId,
   }) {
@@ -301,8 +321,6 @@ class LibraryEntry {
       if (id != null) 'id': id,
       'user_id': userId ?? currentUserId,
       'game_id': game.id,
-      'game_name': game.name,
-      'game_data': game.toJson(),
       'status': status.name,
       'notes': notes,
       'user_rating': userRating,

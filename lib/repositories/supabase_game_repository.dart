@@ -95,7 +95,7 @@ class SupabaseGameRepository implements IGameRepository {
       try {
         final List<dynamic> response = await client
             .from('library_entries')
-            .select('*')
+            .select('*, game:games(*)')
             .eq('user_id', currentUser.id)
             .order('created_at', ascending: false);
 
@@ -127,7 +127,7 @@ class SupabaseGameRepository implements IGameRepository {
       try {
         final response = await client
             .from('library_entries')
-            .select('*')
+            .select('*, game:games(*)')
             .eq('user_id', currentUser.id)
             .eq('game_id', gameId)
             .maybeSingle();
@@ -155,11 +155,16 @@ class SupabaseGameRepository implements IGameRepository {
 
     if (client != null && currentUser != null) {
       try {
+        // 1. Salva/atualiza o catálogo de jogos compartilhado na tabela 'games'
+        await client.from('games').upsert(
+          game.toGamesTableJson(),
+          onConflict: 'id',
+        );
+
+        // 2. Salva a entrada na biblioteca pessoal do usuário
         final payload = {
           'user_id': currentUser.id,
           'game_id': game.id,
-          'game_name': game.name,
-          'game_data': game.toJson(),
           'status': status.name,
           'notes': notes,
           'user_rating': userRating,
